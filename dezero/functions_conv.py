@@ -8,7 +8,7 @@ from dezero.functions import linear, broadcast_to
 # =============================================================================
 # [simple version] conv2d_simple / pooling_simple
 # =============================================================================
-def conv2d_simple(x, W, b=None, stride=1, pad=0):
+def conv2d_simple(x, W, b=None, stride=1, pad=0):  # メモリ効率が悪い実装
     x, W = as_variable(x), as_variable(W)
 
     Weight = W
@@ -58,10 +58,11 @@ class Conv2d(Function):
         KH, KW = W.shape[2:]
         col = im2col_array(x, (KH, KW), self.stride, self.pad, to_matrix=False)
 
-        y = xp.tensordot(col, W, ((1, 2, 3), (1, 2, 3)))
+        y = xp.tensordot(col, W, ((1, 2, 3), (1, 2, 3)))  # (チャンネル、カーネル縦、カーネル横)のテンソル積
+        # y: (バッチサイズ、画像縦、画像横、チャンネル)
         if b is not None:
             y += b
-        y = xp.rollaxis(y, 3, 1)
+        y = xp.rollaxis(y, 3, 1)  # (バッチサイズ、チャンネル、画像縦、画像横) に変換
         # y = np.transpose(y, (0, 3, 1, 2))
         return y
 
@@ -206,7 +207,7 @@ class Pooling2DGrad(Function):
 
         indexes = (self.indexes.ravel()
                    + xp.arange(0, self.indexes.size * KH * KW, KH * KW))
-        
+
         gcol[indexes] = gy.ravel()
         gcol = gcol.reshape(N, C, OH, OW, KH, KW)
         gcol = xp.swapaxes(gcol, 2, 4)
@@ -264,8 +265,8 @@ class AveragePooling(Function):
         # TODO(Koki): This is simple implementation
         N, C, OH, OW = gy.shape
         KW, KH = pair(self.kernel_size)
-        gy /= (KW*KH)
-        gcol = broadcast_to(gy.reshape(-1), (KH, KW, N*C*OH*OW))
+        gy /= (KW * KH)
+        gcol = broadcast_to(gy.reshape(-1), (KH, KW, N * C * OH * OW))
         gcol = gcol.reshape(KH, KW, N, C, OH, OW).transpose(2, 3, 0, 1, 4, 5)
         gx = col2im(gcol, self.input_shape, self.kernel_size, self.stride,
                     self.pad, to_matrix=False)
@@ -375,6 +376,7 @@ def im2col_array(img, kernel_size, stride, pad, to_matrix=True):
                      mode='constant', constant_values=(0,))
         col = np.ndarray((N, C, KH, KW, OH, OW), dtype=img.dtype)
 
+        # img の 4次元領域(N, C, SH*OH+1, SW*OW+1) を抽出して col に格納する
         for j in range(KH):
             j_lim = j + SH * OH
             for i in range(KW):
@@ -382,8 +384,42 @@ def im2col_array(img, kernel_size, stride, pad, to_matrix=True):
                 col[:, :, j, i, :, :] = img[:, :, j:j_lim:SH, i:i_lim:SW]
 
     if to_matrix:
+        # col の並びを (N, OH, OW, C, KH, KW) を変えた後、形状変換
+        #
+        # img                     col(最終)
+        #  [[[[ 0  1  2  3]        [[ 0  1  4  5 16 17 20 21]
+        #     [ 4  5  6  7]         [ 1  2  5  6 17 18 21 22]
+        #     [ 8  9 10 11]         [ 2  3  6  7 18 19 22 23]
+        #     [12 13 14 15]]        [ 4  5  8  9 20 21 24 25]
+        #                     =>    [ 5  6  9 10 21 22 25 26]
+        #    [[16 17 18 19]         [ 6  7 10 11 22 23 26 27]
+        #     [20 21 22 23]         [ 8  9 12 13 24 25 28 29]
+        #     [24 25 26 27]         [ 9 10 13 14 25 26 29 30]
+        #     [28 29 30 31]]        [10 11 14 15 26 27 30 31]]
+        #                            <---------> <--------->
+        #                            チャンネル1 チャンネル2
+        # col(transposeの前)                                  col(transposeの後)
+        #       (*)(-)              (+)                       ここの0,1,4,5は(*)列にある0,1,4,5
+        # [[[[[[ 0  1  2]        [[[[16 17 18]         チャン [[[[[[ 0  1]       [[[[ 4  5]       [[[[ 8  9]
+        #      [ 4  5  6]           [20 21 22]         ネル1       [ 4  5]]         [ 8  9]]         [12 13]]
+        #      [ 8  9 10]]          [24 25 26]]               ここの16,17,20,21は(+)列にある16,17,20,21
+        #                                              チャン     [[16 17]         [[20 21]         [[24 25]
+        #     [[ 1  2  3]          [[17 18 19]         ネル2       [20 21]]]        [24 25]]]        [28 29]]]
+        #      [ 5  6  7]           [21 22 23]
+        #      [ 9 10 11]]]         [25 26 27]]]              ここの1,2,5,6は(-)列にある1,2,5,6
+        #                                                        [[[ 1  2]        [[[ 5  6]        [[[ 9 10]
+        #                                                          [ 5  6]]         [ 9 10]]         [13 14]]
+        #    [[[ 4  5  6]         [[[20 21 22]
+        #      [ 8  9 10]           [24 25 26]                    [[17 18]         [[21 22]         [[25 26]
+        #      [12 13 14]]          [28 29 30]]                    [21 22]]]        [25 26]]]        [29 30]]]
+        #
+        #     [[ 5  6  7]          [[21 22 23]
+        #      [ 9 10 11]           [25 26 27]                   [[[ 2  3]        [[[ 6  7]        [[[10 11]
+        #      [13 14 15]]]]        [29 30 31]]]]]]                [ 6  7]]         [10 11]]         [14 15]]
+        #
+        #     チャンネル1         チャンネル2                     [[18 19]         [[22 23]         [[26 27]
+        #                                                          [22 23]]]]       [26 27]]]]       [30 31]]]]]]
         col = col.transpose((0, 4, 5, 1, 2, 3)).reshape((N * OH * OW, -1))
-
     return col
 
 

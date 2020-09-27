@@ -11,6 +11,7 @@ if is_simple_core:
     from dezero.core_simple import as_array
     from dezero.core_simple import as_variable
     from dezero.core_simple import setup_variable
+    print("[REMARK] Import dezero simple version")
 
 else:
     from dezero.core import Variable

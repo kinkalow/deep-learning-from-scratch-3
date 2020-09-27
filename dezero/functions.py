@@ -289,7 +289,7 @@ def linear(x, W, b=None):
     return Linear()(x, W, b)
 
 
-def linear_simple(x, W, b=None):
+def linear_simple(x, W, b=None):  # メモリ効率が悪い実装
     t = matmul(x, W)
     if b is None:
         return t
@@ -302,7 +302,7 @@ def linear_simple(x, W, b=None):
 # =============================================================================
 # activation function: sigmoid / relu / softmax / log_softmax / leaky_relu
 # =============================================================================
-def sigmoid_simple(x):
+def sigmoid_simple(x):  # メモリ効率が悪い実装
     x = as_variable(x)
     y = 1 / (1 + exp(-x))
     return y
@@ -342,7 +342,7 @@ def relu(x):
     return ReLU()(x)
 
 
-def softmax_simple(x, axis=1):
+def softmax_simple(x, axis=1):  # メモリ効率が悪い実装
     x = as_variable(x)
     y = exp(x)
     sum_y = sum(y, axis=axis, keepdims=True)
@@ -415,7 +415,7 @@ def leaky_relu(x, slope=0.2):
 # =============================================================================
 # loss function: mean_squared_error / softmax_cross_entropy / sigmoid_cross_entropy / binary_cross_entropy
 # =============================================================================
-def mean_squared_error_simple(x0, x1):
+def mean_squared_error_simple(x0, x1):  # メモリ効率が悪い実装
     x0, x1 = as_variable(x0), as_variable(x1)
     diff = x0 - x1
     y = sum(diff ** 2) / len(diff)
@@ -440,7 +440,7 @@ def mean_squared_error(x0, x1):
     return MeanSquaredError()(x0, x1)
 
 
-def softmax_cross_entropy_simple(x, t):
+def softmax_cross_entropy_simple(x, t):  # メモリ効率が悪い実装
     x, t = as_variable(x), as_variable(t)
     N = x.shape[0]
     p = softmax(x)

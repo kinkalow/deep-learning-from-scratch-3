@@ -5,7 +5,6 @@ import dezero.layers as L
 from dezero import utils
 
 
-
 # =============================================================================
 # Model / Sequential / MLP
 # =============================================================================
@@ -30,14 +29,15 @@ class Sequential(Model):
 
 
 class MLP(Model):
+    # fc_output_sizes: 各Linearレイヤの出力サイズを指定する
     def __init__(self, fc_output_sizes, activation=F.sigmoid):
         super().__init__()
         self.activation = activation
         self.layers = []
 
         for i, out_size in enumerate(fc_output_sizes):
-            layer = L.Linear(out_size)
-            setattr(self, 'l' + str(i), layer)
+            layer = L.Linear(out_size)          # L.Linear内で W と b がパラメータ管理化に置かれる
+            setattr(self, 'l' + str(i), layer)  # Layer.__setattr__(...) を呼び、layerがパラメータ管理下に置かれる
             self.layers.append(layer)
 
     def forward(self, x):
@@ -186,7 +186,7 @@ class BuildingBlock(Layer):
                              downsample_fb)
         self._forward = ['a']
         for i in range(n_layers - 1):
-            name = 'b{}'.format(i+1)
+            name = 'b{}'.format(i + 1)
             bottleneck = BottleneckB(out_channels, mid_channels)
             setattr(self, name, bottleneck)
             self._forward.append(name)
@@ -219,7 +219,7 @@ class BottleneckA(Layer):
         # In the original MSRA ResNet, stride=2 is on 1x1 convolution.
         # In Facebook ResNet, stride=2 is on 3x3 convolution.
         stride_1x1, stride_3x3 = (1, stride) if downsample_fb else (stride, 1)
-       
+
         self.conv1 = L.Conv2d(in_channels, mid_channels, 1, stride_1x1, 0,
                               nobias=True)
         self.bn1 = L.BatchNorm()
@@ -249,7 +249,7 @@ class BottleneckB(Layer):
 
     def __init__(self, in_channels, mid_channels):
         super().__init__()
-        
+
         self.conv1 = L.Conv2d(in_channels, mid_channels, 1, 1, 0, nobias=True)
         self.bn1 = L.BatchNorm()
         self.conv2 = L.Conv2d(mid_channels, mid_channels, 3, 1, 1, nobias=True)

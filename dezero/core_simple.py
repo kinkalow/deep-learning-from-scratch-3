@@ -12,12 +12,13 @@ class Config:
 
 @contextlib.contextmanager
 def using_config(name, value):
+    # 前処理(設定の変更)
     old_value = getattr(Config, name)
     setattr(Config, name, value)
     try:
-        yield
+        yield  # 呼び出し元に返す(メイン処理)
     finally:
-        setattr(Config, name, old_value)
+        setattr(Config, name, old_value)  # 後処理(元に戻す)
 
 
 def no_grad():
@@ -28,6 +29,9 @@ def no_grad():
 # Variable / Function
 # =============================================================================
 class Variable:
+    # __array_priority__=0の場合、期待はずれの結果になる
+    # Variable.__array_priority__ = 200; print(np.array([1, 2]) + Variable(np.array(3)))  # variable([4 5])
+    # Variable.__array_priority__ = 0;   print(np.array([1, 2]) + Variable(np.array(3)))  # [variable(4) variable(5)]
     __array_priority__ = 200
 
     def __init__(self, data, name=None):
@@ -68,18 +72,22 @@ class Variable:
 
     def set_creator(self, func):
         self.creator = func
-        self.generation = func.generation + 1
+        self.generation = func.generation + 1  # 出力側の世代
 
     def cleargrad(self):
         self.grad = None
 
     def backward(self, retain_grad=False):
+        # 微分値(grad)の初期設定
         if self.grad is None:
             self.grad = np.ones_like(self.data)
+
+        # 関数リストへ登録
 
         funcs = []
         seen_set = set()
 
+        # 関数リスト内の世代が小さい順で並ぶように関数を並び替える
         def add_func(f):
             if f not in seen_set:
                 funcs.append(f)
@@ -88,22 +96,26 @@ class Variable:
 
         add_func(self.creator)
 
+        # 後方処理
         while funcs:
+            # 入力側の微分値を取得
             f = funcs.pop()
             gys = [output().grad for output in f.outputs]  # output is weakref
-            gxs = f.backward(*gys)
+            gxs = f.backward(*gys)  # ndarrayを渡し、微分値を得る
             if not isinstance(gxs, tuple):
                 gxs = (gxs,)
 
             for x, gx in zip(f.inputs, gxs):
+                # 入力側の微分値を更新
                 if x.grad is None:
                     x.grad = gx
                 else:
                     x.grad = x.grad + gx
-
+                # 生成関数のリストを更新
                 if x.creator is not None:
                     add_func(x.creator)
 
+            # 微分値を破棄
             if not retain_grad:
                 for y in f.outputs:
                     y().grad = None  # y is weakref
@@ -125,19 +137,24 @@ class Function:
     def __call__(self, *inputs):
         inputs = [as_variable(x) for x in inputs]
 
+        # 前方処理
         xs = [x.data for x in inputs]
-        ys = self.forward(*xs)
+        ys = self.forward(*xs)  # ndarrayを渡す
         if not isinstance(ys, tuple):
             ys = (ys,)
-        outputs = [Variable(as_array(y)) for y in ys]
+        outputs = [Variable(as_array(y)) for y in ys]  # ndarray => Variable
 
+        # 入力変数、出力変数、世代を保存
         if Config.enable_backprop:
-            self.generation = max([x.generation for x in inputs])
+            # 世代を更新
+            self.generation = max([x.generation for x in inputs])  # 関数の世代
             for output in outputs:
-                output.set_creator(self)
+                output.set_creator(self)  # 生成関数を登録し、出力側の世代も更新
+            # 変数を保存
             self.inputs = inputs
-            self.outputs = [weakref.ref(output) for output in outputs]
+            self.outputs = [weakref.ref(output) for output in outputs]  # 出力変数と生成関数の関係が循環参照 => output:弱参照扱い
 
+        # リストまたはVariable変数を返す
         return outputs if len(outputs) > 1 else outputs[0]
 
     def forward(self, xs):
@@ -205,7 +222,7 @@ def sub(x0, x1):
     return Sub()(x0, x1)
 
 
-def rsub(x0, x1):
+def rsub(x0, x1):  # x0:右辺項、x1:左辺項
     x1 = as_array(x1)
     return Sub()(x1, x0)
 

@@ -71,7 +71,6 @@ def get_dot_graph(output, verbose=True):
         txt += _dot_func(func)
         for x in func.inputs:
             txt += _dot_var(x, verbose)
-
             if x.creator is not None:
                 add_func(x.creator)
 
@@ -79,16 +78,18 @@ def get_dot_graph(output, verbose=True):
 
 
 def plot_dot_graph(output, verbose=True, to_file='graph.png'):
+    # dot言語を作成する
     dot_graph = get_dot_graph(output, verbose)
 
+    # dot言語をファイルへ保存する
     tmp_dir = os.path.join(os.path.expanduser('~'), '.dezero')
     if not os.path.exists(tmp_dir):
         os.mkdir(tmp_dir)
     graph_path = os.path.join(tmp_dir, 'tmp_graph.dot')
-
     with open(graph_path, 'w') as f:
         f.write(dot_graph)
 
+    # 計算グラフを作成するコマンドを実行する
     extension = os.path.splitext(to_file)[1][1:]  # Extension(e.g. png, pdf)
     cmd = 'dot {} -T {} -o {}'.format(graph_path, extension, to_file)
     subprocess.run(cmd, shell=True)
@@ -97,9 +98,8 @@ def plot_dot_graph(output, verbose=True, to_file='graph.png'):
     try:
         from IPython import display
         return display.Image(filename=to_file)
-    except:
+    except Exception:
         pass
-
 
 
 # =============================================================================
@@ -115,14 +115,14 @@ def sum_to(x, shape):
     Returns:
         ndarray: Output array of the shape.
     """
-    ndim = len(shape)
-    lead = x.ndim - ndim
-    lead_axis = tuple(range(lead))
+    ndim = len(shape)     # shape: 出力配列の形状
+    lead = x.ndim - ndim  # x    : 入力配列
+    lead_axis = tuple(range(lead))  # 入力と出力の次元差から判断できるsum用の対象軸を計算
 
-    axis = tuple([i + lead for i, sx in enumerate(shape) if sx == 1])
+    axis = tuple([i + lead for i, sx in enumerate(shape) if sx == 1])  # 出力形状のサイズ1から判断できるsum用の対称軸を計算
     y = x.sum(lead_axis + axis, keepdims=True)
     if lead > 0:
-        y = y.squeeze(lead_axis)
+        y = y.squeeze(lead_axis)  # サイズ1の次元を削除
     return y
 
 
@@ -150,9 +150,9 @@ def reshape_sum_backward(gy, x_shape, axis, keepdims):
         actual_axis = [a if a >= 0 else a + ndim for a in tupled_axis]
         shape = list(gy.shape)
         for a in sorted(actual_axis):
-            shape.insert(a, 1)
+            shape.insert(a, 1)  # gyのaxis=aに次元を追加させるための設定
     else:
-        shape = gy.shape
+        shape = gy.shape  # QUESTION: ここは return gy でいいよね
 
     gy = gy.reshape(shape)  # reshape
     return gy
@@ -326,8 +326,10 @@ def show_progress(block_num, block_size, total_size):
     downloaded = block_num * block_size
     p = downloaded / total_size * 100
     i = int(downloaded / total_size * 30)
-    if p >= 100.0: p = 100.0
-    if i >= 30: i = 30
+    if p >= 100.0:
+        p = 100.0
+    if i >= 30:
+        i = 30
     bar = "#" * i + "." * (30 - i)
     print(bar_template.format(bar, p), end='')
 
@@ -361,7 +363,7 @@ def get_file(url, file_name=None):
     print("Downloading: " + file_name)
     try:
         urllib.request.urlretrieve(url, file_path, show_progress)
-    except (Exception, KeyboardInterrupt) as e:
+    except (Exception, KeyboardInterrupt):
         if os.path.exists(file_path):
             os.remove(file_path)
         raise

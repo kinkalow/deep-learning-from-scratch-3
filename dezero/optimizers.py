@@ -7,7 +7,7 @@ from dezero import cuda, Parameter
 # =============================================================================
 class Optimizer:
     def __init__(self):
-        self.target = None
+        self.target = None  # ModelかLayerのインスタンス変数
         self.hooks = []
 
     def setup(self, target):
@@ -17,6 +17,8 @@ class Optimizer:
     def update(self):
         params = [p for p in self.target.params() if p.grad is not None]
 
+        # パラメータの前処理
+        # 重み減衰や勾配クリッピングなどを行う
         for f in self.hooks:
             f(params)
 
@@ -71,7 +73,6 @@ class FreezeParam:
     def __call__(self, params):
         for p in self.freeze_params:
             p.grad = None
-
 
 
 # =============================================================================

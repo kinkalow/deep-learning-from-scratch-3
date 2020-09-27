@@ -10,6 +10,8 @@ from dezero.utils import pair
 # =============================================================================
 # Layer (base class)
 # =============================================================================
+# 関数(function***.py)内のパラメータを管理したいときに Layer を使用する
+# poolingレイヤのように管理したいパラメータを持たない場合は Layer を使用しない
 class Layer:
     def __init__(self):
         self._params = set()
@@ -20,7 +22,7 @@ class Layer:
         super().__setattr__(name, value)
 
     def __call__(self, *inputs):
-        outputs = self.forward(*inputs)
+        outputs = self.forward(*inputs)  # レイヤ(複数の関数)単位で処理する
         if not isinstance(outputs, tuple):
             outputs = (outputs,)
         self.inputs = [weakref.ref(x) for x in inputs]
@@ -62,7 +64,7 @@ class Layer:
                 params_dict[key] = obj
 
     def save_weights(self, path):
-        self.to_cpu()
+        self.to_cpu()  # 全てのパラメータをndarrayに変換する
 
         params_dict = {}
         self._flatten_params(params_dict)
@@ -70,7 +72,7 @@ class Layer:
                       if param is not None}
         try:
             np.savez_compressed(path, **array_dict)
-        except (Exception, KeyboardInterrupt) as e:
+        except (Exception, KeyboardInterrupt):
             if os.path.exists(path):
                 os.remove(path)
             raise
@@ -87,6 +89,7 @@ class Layer:
 # Linear / Conv2d / Deconv2d
 # =============================================================================
 class Linear(Layer):
+    # in_sizeは前レイヤの出力サイズから判断して自動で決まる
     def __init__(self, out_size, nobias=False, dtype=np.float32, in_size=None):
         super().__init__()
         self.in_size = in_size

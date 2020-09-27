@@ -1,11 +1,11 @@
+from dezero import cuda
+import numpy as np
 import math
 pil_available = True
 try:
     from PIL import Image
 except:
     pil_available = False
-import numpy as np
-from dezero import cuda
 
 
 class DataLoader:
@@ -29,6 +29,7 @@ class DataLoader:
     def __iter__(self):
         return self
 
+    # バッチサイズ分のデータセットを返す
     def __next__(self):
         if self.iteration >= self.max_iter:
             self.reset()

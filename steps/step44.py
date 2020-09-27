@@ -1,5 +1,6 @@
 if '__file__' in globals():
-    import os, sys
+    import os
+    import sys
     sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 import numpy as np
 import dezero.functions as F
@@ -16,13 +17,15 @@ l2 = L.Linear(1)
 
 def predict(x):
     y = l1(x)
+    print(type(x))
+    exit()
     y = F.sigmoid(y)
     y = l2(y)
     return y
 
 
 lr = 0.2
-iters = 10000
+iters = 2
 
 for i in range(iters):
     y_pred = predict(x)
